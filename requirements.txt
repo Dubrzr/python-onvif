@@ -1,0 +1,2 @@
+-e hg+https://hg@bitbucket.org/jurko/suds/@f13c79e#egg=suds
+-e hg+https://hg@bitbucket.org/jurko/suds/@f13c79e#egg=suds

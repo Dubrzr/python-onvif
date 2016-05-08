@@ -5,8 +5,6 @@ here = os.path.abspath(os.path.dirname(__file__))
 version_path = os.path.join(here, 'onvif/version.txt')
 version = open(version_path).read().strip()
 
-requires = [ 'suds >= 0.4', 'suds-passworddigest' ]
-
 CLASSIFIERS = [
     'Development Status :: 3 - Alpha',
     'Environment :: Console',
@@ -42,12 +40,12 @@ setup(
       url='http://github.com/quatanium/python-onvif',
       zip_safe=False,
       packages=find_packages(exclude=['docs', 'examples', 'tests']),
-      install_requires=requires,
       include_package_data=True,
       data_files=[('wsdl', wsdl_files)],
       entry_points={
           'console_scripts': ['onvif-cli = onvif.cli:main']
-          }
+          },
+      test_suite="tests",
      )
 
 

@@ -1,8 +1,7 @@
-''' Core exceptions raised by the ONVIF Client '''
+""" Core exceptions raised by the ONVIF Client """
 
 from suds import WebFault, MethodNotFound, PortNotFound, \
-        ServiceNotFound, TypeNotFound, BuildError, \
-        SoapHeadersNotPermitted
+        ServiceNotFound, TypeNotFound, BuildError
 
 # Error codes setting
 # Error unknown, e.g, HTTP errors
@@ -15,6 +14,15 @@ ERR_ONVIF_WSDL     = 3
 # Error about Build
 ERR_ONVIF_BUILD    = 4
 
+
+class SoapHeadersNotPermitted(Exception):
+    msg = """
+        Method (%s) was invoked with SOAP headers. The WSDL does not define
+        SOAP headers for this method. Retry without the soapheaders keyword
+        argument.
+        """
+    def __init__(self, name):
+            Exception.__init__(self, self.msg % name)
 
 class ONVIFError(Exception):
     def __init__(self, err):

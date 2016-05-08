@@ -3,20 +3,20 @@
 
 import unittest
 
-from suds import WebFault
-
+import base64
 from onvif import ONVIFCamera, ONVIFError
+from onvif.token import UsernameDigestToken
 
-CAM_HOST      = '192.168.0.112'
+CAM_HOST      = '192.168.0.1'
 CAM_PORT      = 80
 CAM_USER      = 'admin'
-CAM_PASS      = '12345'
+CAM_PASS      = 'admin'
 
 DEBUG = False
 
 def log(ret):
     if DEBUG:
-        print ret
+        print(ret)
 
 class TestDevice(unittest.TestCase):
 
@@ -112,6 +112,35 @@ class TestDevice(unittest.TestCase):
         ''' Set the dynamic DNS settings on a device '''
         ret = self.cam.devicemgmt.GetDynamicDNS()
         ret = self.cam.devicemgmt.SetDynamicDNS(dict(Type=ret.Type, Name="random"))
+
+    def test_digest_generation(self):
+        token = UsernameDigestToken()
+        token.username = 'test'
+
+        # case 1
+        token.password = 'test'
+        token.nonce = base64.b64decode("8kqcOS9SFYxSRslITbBmlw==".encode('ascii'))
+        token.created = "2012-10-29T08:18:34.836Z"
+
+        self.assertEqual(token.generate_digest(),
+                         "LOzA3VPv+2hFGOHq8O6gcEXsc/k=".encode('ascii'))
+
+
+        # case 2
+        token.password = 'ic3'
+        token.nonce = base64.b64decode("m4feQj9DG96uNY1tCoFBnA==".encode('ascii'))
+        token.created = "2012-10-29T08:49:58.645Z"
+
+        self.assertEqual(token.generate_digest(),
+                         "K80tK4TyuvjuXvMu++O8twrXuTY=".encode('ascii'))
+
+        # case 3
+        token.password = 'wss22wert'
+        token.nonce = base64.b64decode("MzI2NjYyNzYxMQ==".encode('ascii'))
+        token.created = "2012-10-29T05:39:24Z"
+
+        self.assertEqual(token.generate_digest(),
+                         "88FDZSIoCwQT9zhMqpcekDvZwVo=".encode('ascii'))
 
 if __name__ == '__main__':
     unittest.main()

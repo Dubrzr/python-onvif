@@ -1,25 +1,27 @@
+from _md5 import md5
+
 __version__ = '0.0.1'
 
 import os.path
-from types import InstanceType
-import urlparse
-import urllib
+from urllib.parse import urljoin
+from urllib.request import pathname2url
 from threading import Thread, RLock
 
+import collections
 import logging
 logger = logging.getLogger('onvif')
 logging.basicConfig(level=logging.INFO)
 logging.getLogger('suds.client').setLevel(logging.CRITICAL)
 
 from suds.client import Client
-from suds.wsse import Security, UsernameToken
+from suds.wsse import Security, UsernameToken, Token
 from suds.cache import ObjectCache, NoCache
-from suds_passworddigest.token import UsernameDigestToken
+from onvif.token import UsernameDigestToken
 from suds.bindings import binding
 binding.envns = ('SOAP-ENV', 'http://www.w3.org/2003/05/soap-envelope')
 
 from onvif.exceptions import ONVIFError
-from definition import SERVICES, NSMAP
+from onvif.definition import SERVICES
 
 # Ensure methods to raise an ONVIFError Exception
 # when some thing was wrong
@@ -77,14 +79,14 @@ class ONVIFService(object):
             # Create cache object
             # NOTE: if cache_location is specified,
             # onvif must has the permission to access it.
-            cache = ObjectCache(location=cache_location)
-            # cache_duration: cache will expire in `cache_duration` days
-            if cache_duration is not None:
-                cache.setduration(days=cache_duration)
+            kwargs = {}
+            kwargs['location'] = cache_location
+            kwargs['days'] = cache_duration
+            cache = ObjectCache(**kwargs)
 
 
         # Convert pathname to url
-        self.url = urlparse.urljoin('file:', urllib.pathname2url(url))
+        self.url = urljoin('file:', pathname2url(url))
         self.xaddr = xaddr
         # Create soap client
         if not ws_client:
@@ -124,8 +126,16 @@ class ONVIFService(object):
             token = UsernameDigestToken(self.user, self.passwd)
         else:
             token = UsernameToken(self.user, self.passwd)
-            token.setnonce()
-            token.setcreated()
+
+        s = []
+        s.append(self.user)
+        s.append(self.passwd)
+        s.append(Token.sysdate())
+        m = md5()
+        m.update(':'.join(s).encode('ascii'))
+        token.nonce = m.hexdigest()
+
+        token.setcreated()
 
         security.tokens.append(token)
         self.ws_client.set_options(wsse=security)
@@ -153,15 +163,15 @@ class ONVIFService(object):
     def service_wrapper(self, func):
         @safe_func
         def wrapped(params=None, callback=None):
-            def call(params=None, callback=None):
+            def call(params_=None, callback_=None):
                 # No params
-                if params is None:
-                    params = {}
-                elif isinstance(params, InstanceType):
-                    params = ONVIFService.to_dict(params)
-                ret = func(**params)
-                if callable(callback):
-                    callback(ret)
+                if params_ is None:
+                    params_ = {}
+                elif isinstance(params_, list):
+                    params_ = ONVIFService.to_dict(params_)
+                ret = func(**params_)
+                if isinstance(callback_, collections.Callable):
+                    callback_(ret)
                 return ret
 
             if self.daemon:
@@ -206,7 +216,7 @@ class ONVIFCamera(object):
     services_template = {'devicemgmt': None, 'ptz': None, 'media': None,
                          'imaging': None, 'events': None, 'analytics': None }
     def __init__(self, host, port ,user, passwd, wsdl_dir=os.path.join(os.path.dirname(os.path.dirname(__file__)), "wsdl"),
-                 cache_location=None, cache_duration=None,
+                 cache_location=None, cache_duration=30,
                  encrypt=True, daemon=False, no_cache=False):
         self.host = host
         self.port = int(port)
@@ -267,7 +277,7 @@ class ONVIFCamera(object):
         self.capabilities = self.devicemgmt.GetCapabilities()
 
         with self.services_lock:
-            for sname in self.services.keys():
+            for sname in list(self.services.keys()):
                 xaddr = getattr(self.capabilities, sname.capitalize).XAddr
                 self.services[sname].ws_client.set_options(location=xaddr)
 
@@ -284,7 +294,7 @@ class ONVIFCamera(object):
             return
 
         with self.services_lock:
-            for service in self.services.keys():
+            for service in list(self.services.keys()):
                 self.services[service].set_wsse(user, passwd)
 
     def get_service(self, name, create=True):
